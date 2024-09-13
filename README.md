@@ -1,5 +1,5 @@
 # rl-is-fun
-This is an unfinished hobby project for RL and building electrical power managementf for a typical building. 
+This is an unfinished hobby project for experimenting with dynamic programming and RL for use in building electrical power management. 
 In this setup, we are integrating Ridge regression with a reinforcement learning (RL) agent to optimize energy consumption in an HVAC system. 
 The environment, represented by the AHU system, predicts building power usage (`CurrentKW`) based on various input features like space temperatures (`SpaceTemp`, `VAV2_6_SpaceTemp`, etc.) and AHU fan speed (`Sa_FanSpeed`). 
 The Ridge regression model, pre-trained on historical data, is used to predict the building's power consumption during each step of the RL agent's actions. 
