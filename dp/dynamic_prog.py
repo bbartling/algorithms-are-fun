@@ -1,92 +1,88 @@
-import numpy as np
+import random
 
-# Mock data for the next 24 hours (hourly weather forecast and power costs)
-weather_forecast = [75, 74, 73, 72, 71, 70, 69, 68, 67, 66, 65, 64, 
-                    63, 62, 61, 60, 59, 58, 57, 56, 55, 54, 53, 52]  # Example: outside temp (°F)
-power_costs = [0.15, 0.14, 0.12, 0.11, 0.13, 0.16, 0.18, 0.20, 0.22, 0.21, 
-               0.19, 0.18, 0.17, 0.15, 0.14, 0.12, 0.11, 0.10, 0.13, 0.14, 
-               0.16, 0.18, 0.19, 0.20]  # Example: cost per kWh ($)
+# Constants
+NUM_HEAT_PUMPS = 60  # Number of heat pumps to generate up to 300 kW
+POWER_THRESHOLD_KW = 250  # Maximum allowed total power usage (kW)
+INITIAL_BUILDING_LOAD_KW = 50  # Initial building load at 3 AM (kW)
+START_TIME_MINUTES = 180  # 3 AM in minutes
+SCHOOL_START_TIME_MINUTES = 420  # 7 AM in minutes
+TOTAL_MINUTES = SCHOOL_START_TIME_MINUTES - START_TIME_MINUTES  # Total warm-up window
 
-# Mock HVAC state space (e.g., SpaceTemp, VAV2_6_SpaceTemp, VAV2_7_SpaceTemp, fan speed)
-state_space = [
-    (72, 71, 70, 50),  # Tuple represents (SpaceTemp, VAV2_6_SpaceTemp, VAV2_7_SpaceTemp, fan speed)
-    (74, 73, 72, 60),
-    (70, 69, 68, 40),
-    (68, 67, 66, 30)
-]
+# Model constants
+SLOPE = 0.026
+INTERCEPT = 7.25
 
-# Transition cost function (example: cost for adjusting setpoints/fan speed)
-def transition_cost(prev_state, current_state):
-    adjustment_cost = sum(np.abs(np.array(current_state) - np.array(prev_state))) * 0.05
-    return adjustment_cost  # Example: cost based on magnitude of changes
+# Input: Fake cold morning temperature
+outside_temp = 20  # Example cold morning temperature at 3 AM in Fahrenheit
 
-# Comfort penalty function (penalty for deviating from comfort targets)
-def comfort_penalty(state):
-    # Assume comfort is defined as maintaining SpaceTemp between 70 and 74 °F
-    space_temp = state[0]
-    penalty = 0
-    if space_temp < 70:
-        penalty += (70 - space_temp) * 2  # Penalty for being too cold
-    elif space_temp > 74:
-        penalty += (space_temp - 74) * 2  # Penalty for being too warm
-    return penalty
+# Function to calculate warm-up time
+def calculate_warmup_time(desired_temp_rise, outside_temp):
+    warmup_rate = SLOPE * outside_temp + INTERCEPT
+    time_hours = desired_temp_rise / warmup_rate
+    time_minutes = time_hours * 60
+    return time_minutes
 
-# Energy consumption function (example: rough estimate of energy consumption)
-def energy_consumption(state, weather):
-    space_temp, vav2_6, vav2_7, fan_speed = state
-    # Example: consumption depends on temperature difference and fan speed
-    temp_diff = np.abs(space_temp - weather)
-    return temp_diff * 0.1 + fan_speed * 0.05
-
-# Step 1: Initialize the DP table
-dp_table = {}
-
-for hour in range(24):
-    dp_table[hour] = {}
-    for state in state_space:
-        dp_table[hour][state] = float('inf')  # Initialize cost to infinity
-
-# Base case: Initial conditions at hour 0
-initial_state = (72, 71, 70, 50)  # Example starting state
-dp_table[0][initial_state] = 0  # No cost at the start
-
-# Step 2: Populate DP table with costs over 24 hours
-for hour in range(1, 24):
-    weather = weather_forecast[hour]  # Get weather for this hour
-    power_rate = power_costs[hour]  # Get electricity price for this hour
+# Generate random heat pump configurations
+heat_pumps = {}
+for hp_id in range(1, NUM_HEAT_PUMPS + 1):
+    # Randomly assign power (3 kW or 6 kW)
+    power_kw = random.choice([3, 6])
     
-    for prev_state in state_space:
-        prev_cost = dp_table[hour - 1][prev_state]  # Cost for the previous state
-        
-        for current_state in state_space:
-            # Estimate energy consumption
-            energy_used = energy_consumption(current_state, weather)
-            
-            # Calculate real-time cost
-            real_time_cost = energy_used * power_rate
-            
-            # Calculate transition cost
-            transition_cost_value = transition_cost(prev_state, current_state)
-            
-            # Calculate comfort penalty
-            comfort_penalty_value = comfort_penalty(current_state)
-            
-            # Total cost to move from prev_state at hour-1 to current_state at this hour
-            total_cost = prev_cost + real_time_cost + transition_cost_value + comfort_penalty_value
-            
-            # Update DP table with the minimum cost for reaching current_state at this hour
-            dp_table[hour][current_state] = min(dp_table[hour][current_state], total_cost)
+    # Randomly generate a desired temperature rise between 5 and 15 degrees Fahrenheit
+    desired_temp_rise = random.uniform(5, 15)
+    
+    # Store this heat pump's configuration in a dictionary
+    heat_pumps[hp_id] = {
+        'Power_kW': power_kw,
+        'DesiredTempRise': desired_temp_rise,
+        'WarmupTime': calculate_warmup_time(desired_temp_rise, outside_temp)
+    }
 
-# Step 3: Backtrack to find the optimal setpoints for the day
-optimal_path = []  # Store the best HVAC settings for each hour
-best_state = min(dp_table[23], key=dp_table[23].get)  # Best state at the last hour
+# Initialize DP table
+# dp[t][p]: Maximum number of heat pumps warmed by time t with power p
+dp = [[0] * (POWER_THRESHOLD_KW + 1) for _ in range(TOTAL_MINUTES + 1)]
+# Track the schedule for decisions
+schedule = [[[] for _ in range(POWER_THRESHOLD_KW + 1)] for _ in range(TOTAL_MINUTES + 1)]
 
-# Backtrack to find the optimal path
-for hour in range(23, 0, -1):
-    optimal_path.insert(0, best_state)  # Add the best state for this hour to the path
-    best_state = min(state_space, key=lambda s: dp_table[hour - 1][s] + transition_cost(s, best_state))
+# Initialize the power usage at the initial building load
+dp[0][INITIAL_BUILDING_LOAD_KW] = 0  # At time 0 with initial building load
+schedule[0][INITIAL_BUILDING_LOAD_KW] = []  # Empty list to track scheduled heat pumps
 
-# Step 4: Output optimal HVAC settings for the next 24 hours
-print("Optimal HVAC Settings for Next 24 Hours:")
-for hour, state in enumerate(optimal_path):
-    print(f"Hour {hour}: Setpoints = {state}")
+# Fill the DP table
+for i in range(1, NUM_HEAT_PUMPS + 1):
+    power_kw = heat_pumps[i]['Power_kW']
+    warmup_time = int(heat_pumps[i]['WarmupTime'])
+    
+    # Go through the DP table backwards to avoid recomputing states within the same iteration
+    for t in range(TOTAL_MINUTES, warmup_time - 1, -1):
+        for p in range(POWER_THRESHOLD_KW, power_kw - 1, -1):
+            # Only update if the previous state is valid
+            if dp[t - warmup_time][p - power_kw] >= 0:
+                # Check if adding this heat pump increases the count
+                if dp[t][p] < dp[t - warmup_time][p - power_kw] + 1:
+                    dp[t][p] = dp[t - warmup_time][p - power_kw] + 1
+                    # Record the schedule by copying previous schedule and adding the current heat pump
+                    schedule[t][p] = schedule[t - warmup_time][p - power_kw] + [(i, t)]
+
+# Find the best solution by maximizing the number of heat pumps warmed
+max_heat_pumps = 0
+best_power = -1
+best_schedule = []
+
+for p in range(POWER_THRESHOLD_KW + 1):
+    if dp[TOTAL_MINUTES][p] > max_heat_pumps:
+        max_heat_pumps = dp[TOTAL_MINUTES][p]
+        best_power = p
+        best_schedule = schedule[TOTAL_MINUTES][p]
+
+# Output the results
+if max_heat_pumps == 0:
+    print("No feasible solution found.")
+else:
+    print(f"Maximum number of heat pumps warmed: {max_heat_pumps} with total power: {best_power} kW")
+    print("Schedule of heat pump starts:")
+    for hp_id, start_time in best_schedule:
+        warmup_time = heat_pumps[hp_id]['WarmupTime']
+        print(f"Heat Pump {hp_id}: Power = {heat_pumps[hp_id]['Power_kW']} kW, "
+              f"Start Time = {(START_TIME_MINUTES + start_time) / 60:.2f} AM, "
+              f"Warm-up Time = {warmup_time:.2f} minutes")
