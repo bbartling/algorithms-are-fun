@@ -1,5 +1,6 @@
 class ConfigError(Exception):
     """Custom exception for invalid configuration"""
+
     pass
 
 
@@ -96,6 +97,7 @@ class AHUStaticPressureReset:
             print(f"Adjusting static pressure to {self.current_sp} inches WC")
 
             iterations += 1
+
 
 # Simulated data to run the algorithm
 config = {

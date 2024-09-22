@@ -1,29 +1,46 @@
 class ConfigError(Exception):
-    """Custom exception for invalid configuration"""
+    """Custom exception for invalid configuration."""
+
+    pass
+
+
+class PowerError(Exception):
+    """Custom exception for invalid power data."""
+
     pass
 
 
 class LoadShed:
+    IDLE = "IDLE"
+    STAGE_UP_PENDING = "STAGE_UP_PENDING"
+    STAGE_DOWN_PENDING = "STAGE_DOWN_PENDING"
+    AT_MAX_STAGE = "AT_MAX_STAGE"
+
     def __init__(self, config_dict):
         """Initialize the Load Shedding algorithm with the given config."""
-        self.config_dict = config_dict
-        self.validate_config(config_dict)
-        self.last_operation_time = 0
-        self.current_stage = 0
+        try:
+            self.config_dict = config_dict
+            self.validate_config(config_dict)
+        except ConfigError as e:
+            raise ConfigError(f"Configuration Error: {e}")
+
+        self.last_operation_time = 0  # Initialize the operation time
+        self.current_stage = 0  # Track the current stage
         self.stages = config_dict.get("stages", [])
-        self.sleep_interval_seconds = config_dict.get("SLEEP_INTERVAL_SECONDS", 60)
         self.stage_up_timer = config_dict.get("STAGE_UP_TIMER", 300)
         self.stage_down_timer = config_dict.get("STAGE_DOWN_TIMER", 300)
         self.power_threshold = config_dict.get("POWER_THRESHOLD", 120.0)
 
-        # Simulated building power data (can be replaced with real sensor readings)
-        self.simulated_power_data = [130, 115, 125, 110, 105, 130, 135, 140, 100]
+        # Internal variables to manage timers
+        self.time_elapsed = 0
+        self.up_timer_remaining = self.stage_up_timer
+        self.down_timer_remaining = self.stage_down_timer
+        self.state = self.IDLE
 
     def validate_config(self, config_dict):
         """Validate config dictionary for required keys and correct data types."""
         required_keys = {
             "POWER_THRESHOLD": (int, float),
-            "SLEEP_INTERVAL_SECONDS": (int, float),
             "STAGE_UP_TIMER": (int, float),
             "STAGE_DOWN_TIMER": (int, float),
             "stages": list,
@@ -34,81 +51,106 @@ class LoadShed:
                 raise ConfigError(f"Missing required config key: {key}")
             if not isinstance(config_dict[key], expected_type):
                 raise ConfigError(
-                    f"Incorrect type for {key}. Expected {expected_type}, got {type(config_dict[key])}"
+                    f"Incorrect type for {key}. Expected {expected_type}, got {type(config_dict[key])}."
                 )
 
         for i, stage in enumerate(config_dict["stages"], 1):
             if not isinstance(stage, dict):
                 raise ConfigError(f"Stage {i} must be a dictionary, got {type(stage)}")
             if "description" not in stage:
-                raise ConfigError(f"Stage {i} is missing the required 'description' key")
+                raise ConfigError(
+                    f"Stage {i} is missing the required 'description' key"
+                )
 
-    def should_initiate_stage(self, building_power, time_elapsed, stage_timer_remaining):
-        """Determine whether a new stage should be initiated based on power and timer."""
-        return building_power > self.power_threshold and time_elapsed >= stage_timer_remaining
+    def update_timers(self, current_time):
+        """Update the elapsed time and remaining timers based on the current state."""
+        if self.state == self.STAGE_UP_PENDING:
+            self.time_elapsed = current_time - self.last_operation_time
+            self.up_timer_remaining = max(0, self.stage_up_timer - self.time_elapsed)
+        elif self.state == self.STAGE_DOWN_PENDING:
+            self.time_elapsed = current_time - self.last_operation_time
+            self.down_timer_remaining = max(
+                0, self.stage_down_timer - self.time_elapsed
+            )
+        else:
+            self.time_elapsed = 0
+            self.up_timer_remaining = self.stage_up_timer
+            self.down_timer_remaining = self.stage_down_timer
 
-    def should_release_stage(self, building_power, time_elapsed, stage_timer_remaining):
-        """Determine whether a stage should be released based on power and timer."""
-        return building_power <= self.power_threshold and time_elapsed >= stage_timer_remaining
+    def validate_power(self, current_power):
+        """Ensure that the current power is a valid number and not a negative value."""
+        if not isinstance(current_power, (int, float)):
+            raise PowerError(
+                f"Invalid power type: {type(current_power)}. Expected int or float."
+            )
+        if current_power < 0:
+            raise PowerError(
+                f"Invalid power value: {current_power}. Power must be non-negative."
+            )
 
-    def run(self, max_iterations=None):
-        """Run the load shedding algorithm."""
-        iterations = 0
-        while True:
-            if max_iterations is not None and iterations >= max_iterations:
-                break
+    def manage_stage(self, current_time, current_power):
+        """Manage stage transitions based on building power."""
+        # Validate power input
+        try:
+            self.validate_power(current_power)
+        except PowerError as e:
+            print(f"Power Error: {e}")
+            return  # Skip further processing if power is invalid
 
-            # Simulate reading building power
-            building_power = self.simulated_power_data[iterations % len(self.simulated_power_data)]
-            current_time = iterations * self.sleep_interval_seconds  # Simulate time passing
-            time_elapsed = current_time - self.last_operation_time
-            up_timer_remaining = max(0, self.stage_up_timer - time_elapsed)
-            down_timer_remaining = max(0, self.stage_down_timer - time_elapsed)
+        # Update timers
+        self.update_timers(current_time)
 
-            print(f"Iteration {iterations}: Building Power = {building_power} kW")
-
-            # Check to initiate a new stage
-            if self.should_initiate_stage(building_power, time_elapsed, up_timer_remaining):
+        if current_power > self.power_threshold and self.state != self.AT_MAX_STAGE:
+            # We're in the process of staging up
+            self.state = self.STAGE_UP_PENDING
+            if self.up_timer_remaining == 0:
                 if self.current_stage < len(self.stages):
                     self.current_stage += 1
                     self.last_operation_time = current_time
-                    self.initiate_stage(self.stages[self.current_stage - 1])
+                    print(f"Staged up to {self.current_stage}")
+                    if self.current_stage == len(self.stages):
+                        self.state = self.AT_MAX_STAGE
+                self.reset_timers()
 
-            # Check to release a stage
-            if self.should_release_stage(building_power, time_elapsed, down_timer_remaining):
+        elif current_power <= self.power_threshold:
+            # We're in the process of staging down
+            self.state = self.STAGE_DOWN_PENDING
+            if self.down_timer_remaining == 0:
                 if self.current_stage > 0:
-                    self.release_stage(self.stages[self.current_stage - 1])
                     self.current_stage -= 1
                     self.last_operation_time = current_time
+                    print(f"Staged down to {self.current_stage}")
+                self.reset_tTimers()
 
-            iterations += 1
-            print(f"Sleeping for {self.sleep_interval_seconds} seconds...\n")
+    def reset_timers(self):
+        """Reset the timers after stage transitions."""
+        self.up_timer_remaining = self.stage_up_timer
+        self.down_timer_remaining = self.stage_down_timer
 
-    def initiate_stage(self, stage_config):
-        """Simulate initiating a load-shedding stage."""
-        print(f"Stage Up: {stage_config.get('description', 'No Description')}")
+    def get_status(self, current_time, current_power):
+        """Return the current values of the timers, power, and threshold."""
+        try:
+            self.manage_stage(current_time, current_power)
 
-    def release_stage(self, stage_config):
-        """Simulate releasing a load-shedding stage."""
-        print(f"Stage Down: {stage_config.get('description', 'No Description')}")
+            return {
+                "error": None, 
+                "time_elapsed": round(self.time_elapsed, 1),
+                "up_timer_remaining": round(self.up_timer_remaining, 1),
+                "down_timer_remaining": round(self.down_timer_remaining, 1),
+                "current_power": current_power,
+                "power_threshold": self.power_threshold,
+                "state": self.state,
+            }
 
-
-# Simulated config for load shedding (without detailed BACnet points)
-config = {
-    "POWER_THRESHOLD": 120.0,  # Threshold to initiate load shedding
-    "SLEEP_INTERVAL_SECONDS": 60,  # Interval between checks (seconds)
-    "STAGE_UP_TIMER": 300,  # Time before moving to the next stage (seconds)
-    "STAGE_DOWN_TIMER": 300,  # Time before releasing a stage (seconds)
-    "stages": [
-        {
-            "description": "Stage 1"
-        },
-        {
-            "description": "Stage 2"
-        }
-    ]
-}
-
-# Create the LoadShed instance and run it
-load_shed = LoadShed(config)
-load_shed.run(max_iterations=10)
+        except Exception as e:
+            
+            print(f"Error managing stages: {e}")
+            return {
+                "error": str(e), 
+                "time_elapsed": None,
+                "up_timer_remaining": None,
+                "down_timer_remaining": None,
+                "current_power": None,
+                "power_threshold": None,
+                "state": None,
+            }
