@@ -6,4 +6,9 @@ This is silly hobby project for experimenting with building electrical power man
 
 This is a simple heat pump HVAC system simulation using `pygame`. The simulation manages multiple zones (rooms), each with its own heating needs, based on global outside air temperature.
 
+## Getting Setup in Python
+```bash
+pip install gym pygame numpy
+```
+
 ![Sim GIF](https://github.com/bbartling/flappy-hvac/blob/develop/images/video.gif)
