@@ -10,8 +10,6 @@ While the simulation might not precisely follow the heat transfer formula Q = c 
 
 This project explores exactly that — using RL to experiment with building electrical power management in a heat pump HVAC system through an intentionally simplified yet practical simulation.
 
-**⚠️👷🚧🏗️ WARNING** - This project is new and highly experimental! It may take some time to get something actually working...
-
 
 ## Getting Setup in Python
 
@@ -49,6 +47,7 @@ The **observation space** is designed to reflect the current temperatures of the
 - [ ] Experiment with reward policy and describe in README
 - [ ] Experiment with a form of batch learning where the random agent runs for several episodes and store the transitions (state, action, reward, next state)
 
+![Sim GIF](https://github.com/bbartling/flappy-heat-pump/blob/develop/images/random_walk.gif)
 
 ## Q-learning
 TODO
