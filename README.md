@@ -1,4 +1,4 @@
-This is a fun hobby project inspired by Flappy Bird, aimed at experimenting with reinforcement learning (RL) to develop strategies for managing electrical power in heat pump HVAC systems.
+This is a fun hobby project inspired by ***Flappy Bird***, aimed at experimenting with reinforcement learning (RL) to develop strategies for managing electrical power in heat pump HVAC systems.
 
 <p align="center">
   <img src="https://github.com/bbartling/flappy-heat-pump/blob/develop/images/flappy_bird.gif" alt="Flappy GIF">
