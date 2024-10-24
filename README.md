@@ -1,6 +1,8 @@
 This is a fun hobby project inspired by Flappy Bird, aimed at experimenting with reinforcement learning (RL) to develop strategies for managing electrical power in heat pump HVAC systems.
 
-![Flappy GIF](https://github.com/bbartling/flappy-heat-pump/blob/develop/images/flappy_bird.gif)
+<p align="center">
+  <img src="https://github.com/bbartling/flappy-heat-pump/blob/develop/images/flappy_bird.gif" alt="Flappy GIF">
+</p>
 
 In reality, there's a geothermal-based school in Wisconsin that faces significant challenges in managing electrical demand (kW), especially during the frigid winter months of January. Building operators try to stagger equipment startups in the mornings before school, but it’s a complex problem. How early should the equipment be staggered, and for how long? How many heat pumps can be run simultaneously to warm the building without triggering peak demand? Could RL help solve this? What kind of reward system could be designed to minimize electrical demand spikes, reduce total energy consumption (kWh), and ensure all zones are sufficiently warm for school to start on time?
 
