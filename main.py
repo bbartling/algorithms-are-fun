@@ -67,7 +67,7 @@ heating_power = 0.15  # Heating rate when heating element is on
 max_kw = random.uniform(4.5, 5.5)  # Maximum power of the heater in kW per heat pump
 fan_kw_percent = 0.2  # 20% of power when fan is running without heat
 high_kw_threshold = round(
-    num_zones * max_kw * 0.66, 2
+    num_zones * max_kw * 0.66
 )  # Threshold for high power demand penalty
 
 print("kW high limit setpoint for this game: ", high_kw_threshold)

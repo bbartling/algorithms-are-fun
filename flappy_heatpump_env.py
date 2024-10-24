@@ -1,5 +1,3 @@
-# flappy_heatpump_env.py
-
 import gym
 from gym import spaces
 import numpy as np
@@ -19,15 +17,31 @@ class FlappyHeatPumpEnv(gym.Env):
         pygame.display.set_caption("Flappy Heat Pump with Multiple Zones")
         self.font = pygame.font.SysFont(None, 36)
 
-        # Define action and observation space
-        self.action_space = spaces.Discrete(5)  # Toggle heat for 5 zones
-        self.observation_space = spaces.Box(
-            low=0, high=100, shape=(5,), dtype=np.float32
-        )  # Room temps
-
-        # Initialize zones
+        # Initialize number of zones
         self.num_zones = 5
-        self.zones = self.initialize_zones()
+
+        # Define action and observation space
+        # Action space: Discrete actions to toggle heat for 5 zones
+        self.action_space = spaces.Discrete(self.num_zones)
+
+        # Observation space: Temperatures for 5 zones (continuous values between 0 and 100)
+        self.observation_space = spaces.Box(
+            low=0, high=100, shape=(self.num_zones,), dtype=np.float32
+        )
+
+        # Cooldown timer for each zone
+        self.cooldown_timers = [0] * self.num_zones  # Initialize cooldown for each zone
+
+        # Time windows and action limits
+        self.total_steps = (
+            24  # Total steps for the episode (24 steps for 6 hours, 15-min increments)
+        )
+        self.steps_per_window = 6  # 6 steps allowed per time window
+        self.num_windows = (
+            self.total_steps // self.steps_per_window
+        )  # Divide into equal time windows
+        self.current_window = 0
+        self.actions_taken_in_window = 0
 
         # Initialize other variables
         self.heating_power = 0.15
@@ -35,7 +49,7 @@ class FlappyHeatPumpEnv(gym.Env):
         self.fan_kw_percent = 0.2
         self.total_energy_kwh = 0
         self.max_kw_hit = 0
-        self.timer = 60 * 30  # 60 seconds at 30 FPS
+        self.timer = self.total_steps  # 24 steps (15-minute increments over 6 hours)
 
     def initialize_zones(self):
         return [
@@ -55,15 +69,31 @@ class FlappyHeatPumpEnv(gym.Env):
 
     def reset(self):
         self.zones = self.initialize_zones()
+        self.cooldown_timers = [0] * self.num_zones  # Reset cooldown timers
+        self.current_window = 0  # Reset the action window
+        self.actions_taken_in_window = 0  # Reset actions taken in the window
         self.total_energy_kwh = 0
         self.max_kw_hit = 0
-        self.timer = 60 * 30
+        self.timer = self.total_steps  # Reset to 24 steps (15-minute increments)
         return np.array([zone["room_temp"] for zone in self.zones], dtype=np.float32)
 
     def step(self, action):
-        for i, zone in enumerate(self.zones):
-            if action == i:  # Toggle the heat for zone[i]
-                zone["heat_on"] = not zone["heat_on"]
+        # Decrement the cooldown timers
+        self.cooldown_timers = [max(0, timer - 1) for timer in self.cooldown_timers]
+
+        # Ensure the agent can't take more than the allowed steps in a window
+        if self.actions_taken_in_window < self.steps_per_window:
+            for i, zone in enumerate(self.zones):
+                if (
+                    action == i and self.cooldown_timers[i] == 0
+                ):  # Only toggle if no cooldown
+                    zone["heat_on"] = not zone["heat_on"]
+                    self.cooldown_timers[i] = (
+                        15  # 15-step cooldown (representing 15 minutes)
+                    )
+                    self.actions_taken_in_window += (
+                        1  # Increment the action count for this window
+                    )
 
         # Update temperatures, kW usage, and energy for each zone
         for zone in self.zones:
@@ -80,10 +110,15 @@ class FlappyHeatPumpEnv(gym.Env):
             self.zones, [], 300, self.max_kw, self.num_zones, self.max_kw_hit
         )
 
-        # Reward is not the main focus in this basic example
+        # Check if we need to move to the next time window
+        if self.timer % self.steps_per_window == 0:
+            self.current_window += 1
+            self.actions_taken_in_window = 0  # Reset actions for the new window
+
+        # Reward logic and check if the episode is done
         reward = 0
-        done = self.timer <= 0  # End episode after timer expires
-        info = {}  # Additional info if needed
+        done = self.timer <= 0  # End episode after 24 time steps
+        info = {}
 
         # Decrement timer
         self.timer -= 1

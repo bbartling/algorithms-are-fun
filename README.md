@@ -14,8 +14,44 @@ This project explores exactly that — using RL to experiment with building elec
 
 
 ## Getting Setup in Python
+
+
+Pip install these 3 packages.
 ```bash
 pip install gym pygame numpy
 ```
+If you run into issues with errors on versions of Numpy I am testing on Windows 10 with Python 3.9.
+```python
+NumPy version: 1.26.4
+Pygame version: 2.6.1
+Gym version: 0.26.2
+```
+
+You can install specific package version in Windows Powershell.
+```bash
+py -3.9 -m pip install numpy==1.26.4
+py -3.9 -m pip install pygame==2.6.1
+py -3.9 -m pip install gym==0.26.2
+```
 
 ![Sim GIF](https://github.com/bbartling/flappy-hvac/blob/develop/images/video.gif)
+
+
+## Random Walk
+
+**⚠️👷🚧🏗️ WARNING** - Its not working yet... 😆😂🤣
+
+
+In this simulation environment, the **action space** is defined as a discrete space where the agent can choose between 5 different actions, each corresponding to toggling the heat for one of the 5 zones. This is represented by `spaces.Discrete(self.num_zones)`, indicating that the agent can only take one action per zone at each time step. 
+
+The **observation space** is designed to reflect the current temperatures of the 5 zones, with each temperature represented as a continuous value. The observation space is defined as `spaces.Box(low=0, high=100, shape=(self.num_zones,), dtype=np.float32)`, meaning that the temperatures can vary between 0 and 100 degrees Fahrenheit, and the environment returns these values as a 5-element vector (one for each zone). This continuous observation space provides the agent with detailed state information about the system's current conditions.
+
+- [ ] Experiment with reward policy and describe in README
+- [ ] Experiment with a form of batch learning where the random agent runs for several episodes and store the transitions (state, action, reward, next state)
+
+
+## Q-learning
+TODO
+
+## Deep Q-learing
+TODO

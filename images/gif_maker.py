@@ -2,6 +2,12 @@ import os
 import cv2
 from PIL import Image
 
+"""
+VIDEOs made with CamStudio
+
+https://camstudio.org/
+"""
+
 
 def avi_to_gif_opencv(avi_file, gif_file):
     """Converts an .avi file to a .gif file using OpenCV and Pillow."""
