@@ -2,6 +2,9 @@ import random
 from flappy_heatpump_env import FlappyHeatPumpEnv
 import pygame
 
+from functions import calculate_final_reward
+
+
 # Number of episodes for random walk
 episodes = 100
 
@@ -39,6 +42,10 @@ for episode in range(episodes):
 
         state = next_state
         total_reward += reward
+
+    # At the end of the episode, calculate the final reward based on the HVAC performance
+    final_reward = calculate_final_reward(env.zones, high_kw_threshold=6)
+    total_reward += final_reward  # Add final reward to the total episode reward
 
     print(f"Episode {episode + 1}: Total Reward: {total_reward}")
 

@@ -2,8 +2,7 @@ import pygame
 import random
 from functions import (
     draw_max_kw_hit,
-    calculate_step_reward,
-    calculate_final_reward,
+    calculate_final_reward,  # Only keep final reward
     update_temperature,
     update_combined_power_usage,
     draw_room,
@@ -28,7 +27,6 @@ BLUE = (0, 0, 255)
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 BLACK = (0, 0, 0)
-ORANGE = (255, 165, 0)
 
 # Font
 font = pygame.font.SysFont(None, 36)
@@ -60,7 +58,6 @@ for _ in range(num_zones):
             "at_setpoint": False,  # Tracks if the zone has reached the setpoint
         }
     )
-
 
 # Game settings
 heating_power = 0.15  # Heating rate when heating element is on
@@ -128,9 +125,6 @@ while running:
         y = row * 180 + 20
         draw_room(zone, x, y, screen, BLUE, RED, GREEN, BLACK, font)
 
-    # Calculate reward at each step and accumulate it
-    calculate_step_reward(zones, current_reward, high_kw_threshold, timer)
-
     # Draw the real-time power plot, energy consumption, the countdown timer, the current reward, and the max power hit
     draw_real_time_plot(
         screen,
@@ -153,7 +147,7 @@ while running:
 
     # Check if time is up (End of Episode)
     if timer <= 0:
-        final_reward = calculate_final_reward(zones)
+        final_reward = calculate_final_reward(zones, high_kw_threshold)
         current_reward += final_reward
         show_final_screen(
             screen,
@@ -170,6 +164,5 @@ while running:
     timer -= 1
     pygame.display.flip()
     clock.tick(30)
-
 
 pygame.quit()

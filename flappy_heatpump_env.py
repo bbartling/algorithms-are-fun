@@ -2,7 +2,13 @@ import gym
 from gym import spaces
 import numpy as np
 import pygame
-from functions import draw_room, update_temperature, update_combined_power_usage
+from functions import (
+    draw_room,
+    update_temperature,
+    update_combined_power_usage,
+    calculate_hvac_reward,
+    calculate_final_reward,
+)
 
 
 class FlappyHeatPumpEnv(gym.Env):
@@ -26,7 +32,7 @@ class FlappyHeatPumpEnv(gym.Env):
 
         # Observation space: Temperatures for 5 zones (continuous values between 0 and 100)
         self.observation_space = spaces.Box(
-            low=0, high=100, shape=(self.num_zones,), dtype=np.float32
+            low=40, high=90, shape=(self.num_zones,), dtype=np.float32
         )
 
         # Cooldown timer for each zone
@@ -75,6 +81,9 @@ class FlappyHeatPumpEnv(gym.Env):
         self.total_energy_kwh = 0
         self.max_kw_hit = 0
         self.timer = self.total_steps  # Reset to 24 steps (15-minute increments)
+        self.current_reward = (
+            0  # Initialize or reset the accumulated reward for the episode
+        )
         return np.array([zone["room_temp"] for zone in self.zones], dtype=np.float32)
 
     def step(self, action):
@@ -110,14 +119,21 @@ class FlappyHeatPumpEnv(gym.Env):
             self.zones, [], 300, self.max_kw, self.num_zones, self.max_kw_hit
         )
 
-        # Check if we need to move to the next time window
-        if self.timer % self.steps_per_window == 0:
-            self.current_window += 1
-            self.actions_taken_in_window = 0  # Reset actions for the new window
-
         # Reward logic and check if the episode is done
-        reward = 0
-        done = self.timer <= 0  # End episode after 24 time steps
+        reward = calculate_hvac_reward(
+            self.zones, high_kw_threshold=6, timer=self.timer, start_penalty_threshold=2
+        )
+        self.current_reward += reward  # Accumulate the reward over the episode
+
+        # Inside the step function
+        done = self.timer <= 0
+        if done:
+            # Pass the high_kw_threshold argument
+            final_reward = calculate_final_reward(
+                self.zones, high_kw_threshold=6
+            )  # Final bonus or penalty
+            self.current_reward += final_reward
+
         info = {}
 
         # Decrement timer

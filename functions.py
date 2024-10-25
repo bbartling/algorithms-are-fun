@@ -9,34 +9,74 @@ def calculate_heat_loss(heat_loss_rate, global_outside_air_temp):
 
 
 # Reward calculation based on discussed strategy
-def calculate_step_reward(zones, current_reward, high_kw_threshold, timer):
+def calculate_hvac_reward(zones, high_kw_threshold, timer, start_penalty_threshold):
     total_reward = 0
     total_power = sum(zone["current_kw"] for zone in zones)
     time_left_in_episode = timer // 30
+    staggered_start_bonus = 1.0  # Bonus for spreading out equipment start times
 
     for zone in zones:
+        # Calculate temperature difference reward
         temp_diff = abs(zone["room_temp"] - zone["desired_temp"])
-        temp_reward = 1 if temp_diff < 1 else 0.5 if temp_diff < 3 else 0
-        final_warmup_boost = 1 + (1 / max(1, time_left_in_episode))
-        temp_reward *= final_warmup_boost
+        if temp_diff < 1:
+            temp_reward = 1.5  # Strong reward for staying close to setpoint
+        elif temp_diff < 3:
+            temp_reward = 0.5  # Some reward for being within range
+        else:
+            temp_reward = -1.0  # Penalty for being far from setpoint
 
+        # Apply warmup boost factor, encouraging quicker response as time runs out
+        warmup_boost = 1 + (1 / max(1, time_left_in_episode))
+        temp_reward *= warmup_boost
+
+        # Apply energy penalty (scaled by current power usage of the zone)
         energy_penalty = -0.005 * zone["current_kw"]
+
         total_reward += temp_reward + energy_penalty
 
-    high_demand_penalty = -1 if total_power > high_kw_threshold else 0
+        # Reward for staggering start times (avoid multiple heat pumps starting at once)
+        if zone["current_kw"] > start_penalty_threshold:
+            staggered_start_bonus *= (
+                0.95  # Reduce bonus if too many systems start simultaneously
+            )
+
+    # Penalty for exceeding the total power threshold
+    high_demand_penalty = -2 if total_power > high_kw_threshold else 0
+
+    # Add the staggered start bonus or penalty to encourage spreading out equipment starts
+    total_reward += staggered_start_bonus
+
+    # Add high-demand penalty
     total_reward += high_demand_penalty
-    current_reward += total_reward
+
+    return total_reward
 
 
-# Final reward based on temperature at 6 AM
-def calculate_final_reward(zones):
-    all_at_setpoint = all(
-        abs(zone["room_temp"] - zone["desired_temp"]) < 1 for zone in zones
-    )
-    final_reward = (
-        10 if all_at_setpoint else -10
-    )  # Big reward if all zones are warm, big penalty if not
-    return final_reward
+# Final reward based on temperature at the end of the episode (e.g., 6 AM)
+def calculate_final_reward(zones, high_kw_threshold):
+    total_reward = 0
+    total_power = sum(zone["current_kw"] for zone in zones)
+
+    # Temperature reward based on how close each zone is to its desired setpoint
+    for zone in zones:
+        temp_diff = abs(zone["room_temp"] - zone["desired_temp"])
+        if temp_diff < 1:
+            total_reward += 2  # Strong reward for being very close to the setpoint
+        elif temp_diff < 3:
+            total_reward += 1  # Some reward for being moderately close to the setpoint
+        else:
+            total_reward -= 2  # Penalty for being far from the setpoint
+
+    # High energy consumption penalty
+    energy_penalty = -0.1 * total_power  # Scale penalty based on total power usage
+    total_reward += energy_penalty
+
+    # High demand penalty if power exceeds a certain threshold
+    high_demand_penalty = -5 if total_power > high_kw_threshold else 0
+    total_reward += high_demand_penalty
+
+    # Final overall reward (sum of rewards)
+    return total_reward
 
 
 def update_temperature(zone, max_kw, fan_kw_percent, heating_power, total_energy_kwh):

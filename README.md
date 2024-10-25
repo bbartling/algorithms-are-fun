@@ -53,6 +53,58 @@ The **observation space** is designed to reflect the current temperatures of the
 
 ![Sim GIF](https://github.com/bbartling/flappy-heat-pump/blob/develop/images/random_walk.gif)
 
+### Maximum reward
+```bash
+Max Reward = (2 points/zone * number of zones) + Minimized Energy Penalty (close to 0) - No High Demand Penalty
+```
+
+### Reward System
+
+In this game, the reward is calculated based on three factors:
+1. **Temperature Control**: Each zone is rewarded based on how close the room temperature is to the desired temperature.
+2. **Energy Efficiency**: A penalty is applied based on the total power consumption of all zones.
+3. **Demand Management**: A penalty is applied if the total power consumption exceeds a predefined threshold.
+
+#### 1. Temperature Control Rewards:
+- If the room temperature is within **1 degree** of the desired temperature, the zone receives **+2 points**.
+- If the temperature is within **1-3 degrees**, the zone receives **+1 point**.
+- If the temperature is more than **3 degrees** away from the setpoint, the zone receives a **-2 point** penalty.
+
+#### 2. Energy Efficiency Penalty:
+- A penalty of **-0.1 points per kilowatt** is applied based on the total power usage across all zones. The goal is to minimize power consumption.
+
+#### 3. Demand Management Penalty:
+- If the total power consumption exceeds the **high demand threshold**, a **-5 point** penalty is applied.
+
+### Maximum Reward Calculation
+
+To achieve the maximum possible reward, the player (or bot) must ensure:
+1. All zones are kept within **1 degree** of the desired temperature for the entire episode.
+2. Power consumption is minimized to reduce the energy penalty.
+3. The total power usage stays below the **high demand threshold** to avoid the **-5 point** penalty.
+
+#### Example Maximum Reward Calculation (for 5 zones):
+- **Temperature Control**: If all zones are within 1 degree of the setpoint, the total temperature reward would be:
+  \[
+  2 \, \text{points/zone} \times 5 \, \text{zones} = +10 \, \text{points}
+  \]
+  
+- **Energy Penalty**: Assuming efficient energy usage and minimizing the total power consumption, the penalty could be small (e.g., around **-1 point**).
+
+- **High Demand Penalty**: Avoided by keeping the total power below the threshold, resulting in **0 points** for this penalty.
+
+#### Total Maximum Reward:
+\[
++10 \, \text{(Temperature Reward)} - 1 \, \text{(Energy Penalty)} = \approx +9 \, \text{points}
+\]
+
+---
+
+This is the highest theoretical reward achievable in the game. In real gameplay, rewards will vary based on how well the zones are managed, the efficiency of power usage, and whether demand spikes are avoided.
+
+---
+
+
 ## Q-learning
 TODO
 
