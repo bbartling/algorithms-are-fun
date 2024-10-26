@@ -123,3 +123,4 @@ py -3.9 random_walk.py
 
 - Implement Q-learning to train the agent.
 - Improve the reward function for better energy efficiency and comfort management.
+- Incorporate with a real physics energy simulation tool instead of a `Flappy` sim.
