@@ -12,7 +12,7 @@ The simulation environment is inspired by `Flappy Bird`, with the goal of managi
 
 ### How It Works
 
-The system simulates multiple zones, each with its own temperature and heating needs. The agent can turn on or off the heat in each zone, and the goal is to:
+The system simulates multiple zones, each with its own temperature and heating needs. The agent can turn on or off the heat in each zone, and the goal is for ***five HVAC heat pump units*** to:
 - Maintain comfortable room temperatures.
 - Minimize energy consumption (kWh).
 - Prevent high power demand peaks (kW).
@@ -51,7 +51,9 @@ Where:
 
 ### Reward Policy
 
-The reward policy is designed to incentivize energy savings and temperature comfort:
+The reward policy is designed to emulate the decision-making process of a real-life building operator, incentivizing both energy efficiency and occupant comfort. The policy works by prioritizing three main objectives: first, ensuring that all zones reach the desired temperature during occupancy; second, minimizing the total electrical energy consumption (kWh) required to heat those zones; and third, managing electrical power demand (kW) to avoid costly spikes. 
+
+In real-world HVAC systems, particularly those using heat pumps during cold winters, electricity demand charges can dramatically increase utility bills. By mimicking this challenge in the reward structure, we aim to replicate the considerations a human operator would take when running a building automation system—balancing comfort with cost savings. This is a real-world problem that AI has yet to fully solve, and our approach brings us one step closer by optimizing energy use and demand in a way that makes practical sense in a real building environment.
 
 ```python
 def calculate_real_life_reward(self, zones, high_kw_threshold, total_energy_kwh, baseline_energy_kwh, debug=False):
