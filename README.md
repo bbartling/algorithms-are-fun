@@ -1,112 +1,123 @@
-This is a fun hobby project inspired by ***Flappy Bird***, aimed at experimenting with reinforcement learning (RL) to develop strategies for managing electrical power in heat pump HVAC systems.
+# Flappy Heat Pump HVAC Simulation with Q-Learning
+
+This project simulates an HVAC system with heat pumps and uses reinforcement learning (specifically Q-learning) to optimize the operation of these heat pumps, minimizing power consumption and maximizing comfort across multiple zones.
+
+## Simulation Overview
+
+The simulation environment is inspired by `Flappy Bird`, with the goal of managing electrical power in an HVAC system with heat pumps. The system needs to maintain desired temperatures in several zones, minimize power consumption, and avoid demand peaks (high kW usage).
 
 <p align="center">
   <img src="https://github.com/bbartling/flappy-heat-pump/blob/develop/images/flappy_bird.gif" alt="Flappy GIF">
 </p>
 
-In reality, there's a geothermal-based school in Wisconsin that faces significant challenges in managing electrical demand (kW), especially during the frigid winter months of January. Building operators try to stagger equipment startups in the mornings before school, but it’s a complex problem. How early should the equipment be staggered, and for how long? How many heat pumps can be run simultaneously to warm the building without triggering peak demand? Could RL help solve this? What kind of reward system could be designed to minimize electrical demand spikes, reduce total energy consumption (kWh), and ensure all zones are sufficiently warm for school to start on time?
+### How It Works
 
-This project explores how Reinforcement Learning (RL) can be used to manage electrical power demand in heat pump HVAC systems by optimizing equipment staggering, all through a simplified simulation.
+The system simulates multiple zones, each with its own temperature and heating needs. The agent can turn on or off the heat in each zone, and the goal is to:
+- Maintain comfortable room temperatures.
+- Minimize energy consumption (kWh).
+- Prevent high power demand peaks (kW).
 
-If RL can master Flappy Bird using simplified, made-up calculations that certainly don’t follow Newton’s law of gravitation, yet still produce a convincing, life-like mimic of reality, could it also learn to stagger HVAC equipment in a similar way?
+### Environment Setup
 
-While the simulation might not precisely follow the heat transfer formula Q = c × m × ΔT, could RL still optimize equipment operation using a simulation that mimics real-life electrical load profiles and historical data? Just as Flappy Bird "feels" right despite its abstract physics, could RL successfully manage electrical demand without perfectly following the rules of thermodynamics, by leveraging historical trends and load patterns to make effective decisions?
+1. **Action Space**: The agent can toggle heating in each of the zones.
+   - For each zone, the agent has an action to either turn the heat on or off.
+   - Action space is defined by `spaces.Discrete(self.num_zones)`.
 
-This project explores exactly that — using RL to experiment with building electrical power management in a heat pump HVAC system through an intentionally simplified yet practical simulation.
+2. **Observation Space**: The environment provides the current temperatures of the zones.
+   - Each zone's temperature is represented as a continuous value between 0 and 100.
+   - Observation space is `spaces.Box(low=0, high=100, shape=(self.num_zones,), dtype=np.float32)`.
 
+3. **Reward Calculation**:
+   - Rewards are based on maintaining temperatures within a comfortable range, minimizing energy consumption, and preventing high demand spikes.
 
-## Getting Setup in Python
+### Q-Learning
 
+In this version, Q-learning is applied to learn the optimal policy for controlling the HVAC system. The agent learns to:
+- **Maximize comfort**: Keep the room temperatures within a narrow range (70°F ± 1°F).
+- **Minimize energy consumption**: Reduce kWh usage.
+- **Manage power demand**: Keep kW usage under a certain threshold.
 
-Pip install these 3 packages.
+The Q-learning algorithm works by exploring different actions and updating a Q-table that records the expected rewards for each state-action pair.
+
+#### Q-learning Formula:
+- Q(s, a) = Q(s, a) + α [r + γ max(Q(s', a')) - Q(s, a)]
+
+Where:
+- `Q(s, a)` is the current value of the state-action pair.
+- `α` is the learning rate.
+- `r` is the reward.
+- `γ` is the discount factor for future rewards.
+- `max(Q(s', a'))` is the maximum value of the next state-action pair.
+
+### Reward Policy
+
+The reward policy is designed to incentivize energy savings and temperature comfort:
+
+```python
+def calculate_real_life_reward(self, zones, high_kw_threshold, total_energy_kwh, baseline_energy_kwh, debug=False):
+    total_reward = 0
+    base_pay = 100
+    comfort_bonus = 0
+    energy_savings_bonus = 0
+    demand_management_bonus = 0
+    penalties = 0
+
+    total_power = sum(zone["current_kw"] for zone in zones)
+
+    all_within_comfort = all(abs(zone["room_temp"] - zone["desired_temp"]) < 3 for zone in zones)
+    if all_within_comfort:
+        total_reward += base_pay
+    else:
+        penalties -= 25
+
+    for zone in zones:
+        temp_diff = abs(zone["room_temp"] - zone["desired_temp"])
+        if temp_diff < 1:
+            comfort_bonus += 10
+        elif temp_diff >= 3:
+            penalties -= 25
+
+    energy_savings = max(0, baseline_energy_kwh - total_energy_kwh)
+    energy_savings_bonus += energy_savings * 2
+
+    if total_power <= high_kw_threshold:
+        demand_management_bonus += 20
+    else:
+        penalties -= 5
+
+    total_reward += comfort_bonus + energy_savings_bonus + demand_management_bonus + penalties
+    if total_reward < 0:
+        total_reward = 0
+
+    return total_reward
+```
+
+### Installation
+
+To install the required packages, run:
+
 ```bash
 pip install gym pygame numpy
 ```
-If you run into issues with errors on versions of Numpy I am testing on Windows 10 with Python 3.9.
-```python
-NumPy version: 1.26.4
-Pygame version: 2.6.1
-Gym version: 0.26.2
-```
 
-You can install specific package version in Windows Powershell.
+Make sure to install specific versions if needed (e.g., for Python 3.9 on Windows):
+
 ```bash
 py -3.9 -m pip install numpy==1.26.4
 py -3.9 -m pip install pygame==2.6.1
 py -3.9 -m pip install gym==0.26.2
 ```
 
-![Sim GIF](https://github.com/bbartling/flappy-hvac/blob/develop/images/video.gif)
+### Running the Simulation
 
-
-## Random Walk
-
-**⚠️👷🚧🏗️ WARNING** - Its not working yet... 😆😂🤣
-
-
-In this simulation environment, the **action space** is defined as a discrete space where the agent can choose between 5 different actions, each corresponding to toggling the heat for one of the 5 zones. This is represented by `spaces.Discrete(self.num_zones)`, indicating that the agent can only take one action per zone at each time step. 
-
-The **observation space** is designed to reflect the current temperatures of the 5 zones, with each temperature represented as a continuous value. The observation space is defined as `spaces.Box(low=0, high=100, shape=(self.num_zones,), dtype=np.float32)`, meaning that the temperatures can vary between 0 and 100 degrees Fahrenheit, and the environment returns these values as a 5-element vector (one for each zone). This continuous observation space provides the agent with detailed state information about the system's current conditions.
-
-- [ ] Experiment with reward policy and describe in README
-- [ ] Experiment with a form of batch learning where the random agent runs for several episodes and store the transitions (state, action, reward, next state)
+To run the random walk simulation:
+```bash
+py -3.9 random_walk.py
+```
 
 ![Sim GIF](https://github.com/bbartling/flappy-heat-pump/blob/develop/images/random_walk.gif)
 
-### Maximum reward
-```bash
-Max Reward = (2 points/zone * number of zones) + Minimized Energy Penalty (close to 0) - No High Demand Penalty
-```
+### Future Work
 
-### Reward System
-
-In this game, the reward is calculated based on three factors:
-1. **Temperature Control**: Each zone is rewarded based on how close the room temperature is to the desired temperature.
-2. **Energy Efficiency**: A penalty is applied based on the total power consumption of all zones.
-3. **Demand Management**: A penalty is applied if the total power consumption exceeds a predefined threshold.
-
-#### 1. Temperature Control Rewards:
-- If the room temperature is within **1 degree** of the desired temperature, the zone receives **+2 points**.
-- If the temperature is within **1-3 degrees**, the zone receives **+1 point**.
-- If the temperature is more than **3 degrees** away from the setpoint, the zone receives a **-2 point** penalty.
-
-#### 2. Energy Efficiency Penalty:
-- A penalty of **-0.1 points per kilowatt** is applied based on the total power usage across all zones. The goal is to minimize power consumption.
-
-#### 3. Demand Management Penalty:
-- If the total power consumption exceeds the **high demand threshold**, a **-5 point** penalty is applied.
-
-### Maximum Reward Calculation
-
-To achieve the maximum possible reward, the player (or bot) must ensure:
-1. All zones are kept within **1 degree** of the desired temperature for the entire episode.
-2. Power consumption is minimized to reduce the energy penalty.
-3. The total power usage stays below the **high demand threshold** to avoid the **-5 point** penalty.
-
-#### Example Maximum Reward Calculation (for 5 zones):
-- **Temperature Control**: If all zones are within 1 degree of the setpoint, the total temperature reward would be:
-  \[
-  2 \, \text{points/zone} \times 5 \, \text{zones} = +10 \, \text{points}
-  \]
-  
-- **Energy Penalty**: Assuming efficient energy usage and minimizing the total power consumption, the penalty could be small (e.g., around **-1 point**).
-
-- **High Demand Penalty**: Avoided by keeping the total power below the threshold, resulting in **0 points** for this penalty.
-
-#### Total Maximum Reward:
-\[
-+10 \, \text{(Temperature Reward)} - 1 \, \text{(Energy Penalty)} = \approx +9 \, \text{points}
-\]
-
----
-
-This is the highest theoretical reward achievable in the game. In real gameplay, rewards will vary based on how well the zones are managed, the efficiency of power usage, and whether demand spikes are avoided.
-
----
-
-
-## Q-learning
-TODO
-
-## Deep Q-learing
-TODO
+- Implement Q-learning to train the agent.
+- Improve the reward function for better energy efficiency and comfort management.
