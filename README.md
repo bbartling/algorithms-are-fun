@@ -119,8 +119,10 @@ py -3.9 random_walk.py
 
 ![Sim GIF](https://github.com/bbartling/flappy-heat-pump/blob/develop/images/random_walk.gif)
 
+* Each red dot represents the bot turning on the heat in the 5 zone heat pump HVAC system.
+
 ### Future Work
 
 - Implement Q-learning to train the agent.
 - Improve the reward function for better energy efficiency and comfort management.
-- Incorporate with a real physics energy simulation tool instead of a `Flappy` sim.
+- Incorporate with a real physics energy simulation tool or engine to be more life like as possible instead of made up calculations or a `Flappy` looking sim.
