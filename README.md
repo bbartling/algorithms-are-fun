@@ -17,6 +17,13 @@ The system simulates multiple zones, each with its own temperature and heating n
 - Minimize energy consumption (kWh).
 - Prevent high power demand peaks (kW).
 
+### Goal of the Game
+
+The goal of the game is to simulate a scenario where a building's HVAC system must warm up a cold building during winter, mimicking the time period from midnight to 6 AM. The challenge is to optimize heating in such a way that electrical demand (kW) and electrical energy consumption (kWh) are minimized, while ensuring the building is comfortably warmed up by the time it is occupied. 
+
+In this simulation, each episode represents 24 time steps, with each step corresponding to 15 minutes in real-time. The bot has 24 steps, symbolizing 6 hours, to optimize the HVAC system's performance before occupants arrive in the building. This fast-paced simulation replicates a real-world scenario where a building operator or an AI bot would work overnight to ensure energy-efficient and effective heating, balancing energy savings with comfort.
+
+
 ### Environment Setup
 
 1. **Action Space**: The agent can toggle heating in each of the zones.
@@ -119,7 +126,7 @@ py -3.9 random_walk.py
 
 ![Sim GIF](https://github.com/bbartling/flappy-heat-pump/blob/develop/images/random_walk.gif)
 
-* Each red dot represents the bot turning on the heat in the 5 zone heat pump HVAC system.
+* Each red dot represents the bot turning on the heat in the 5 zone heat pump HVAC system. If the zone turns green this means the heat pump is up to a proper zone air temperature setpoint.
 
 ### Future Work
 
