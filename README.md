@@ -2,6 +2,8 @@
 
 This project simulates an HVAC system with heat pumps and uses reinforcement learning (specifically Q-learning) to optimize the operation of these heat pumps, minimizing power consumption and maximizing comfort across multiple zones.
 
+**⚠️👷🚧🏗️ WARNING** - This project is new and highly experimental! Its in the process of getting an overhaul to EnergPlus simulation tools and things are broken at the moment.
+
 ## Simulation Overview
 
 The simulation environment is inspired by `Flappy Bird`, with the goal of managing electrical power in an HVAC system powered by heat pumps. The objective is to maintain desired temperatures across multiple zones while minimizing power consumption and avoiding demand peaks (high kW usage). The heat loss calculations are completely made-up, with no connection to real-life physics—just like how `Flappy Bird` doesn't worry about real-world aerodynamics or gravity. The experiment is a playful exploration to see if reinforcement learning (RL) can optimize HVAC systems. If RL shows promise here, maybe one day we'll dive into real-world physics for the HVAC system... but for now, it's just a "Flappy" Sim doing its best!
