@@ -9,6 +9,35 @@ __pycache__/
 
 *.avi
 
+# Ignore saved models
+*.pkl
+*.joblib
+
+# Ignore temporary files
+*.log
+*.tmp
+__pycache__/
+*.py[cod]
+.DS_Store
+
+# Ignore data files
+*.csv
+*.tsv
+*.parquet
+*.feather
+*.h5
+*.xlsx
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Ignore virtual environments
+.venv/
+venv/
+
+# Ignore models directory
+models/
+
 
 # Distribution / packaging
 .Python

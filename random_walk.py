@@ -1,12 +1,12 @@
 import random
-from flappy_heatpump_env import FlappyHeatPumpEnv
+from flappy_building_sim_env import ChillerPlantSim
 import pygame
 
 # Number of episodes for random walk
 episodes = 100
 
 # Create the Gym environment
-env = FlappyHeatPumpEnv()
+env = ChillerPlantSim()
 
 global_outside_air_temp = random.randint(16, 40)
 
@@ -33,7 +33,7 @@ for episode in range(episodes):
                 exit()
 
         # Select a random action
-        action = env.action_space.sample()
+        action = random.choice([0, 1])  # 0 = no action, 1 = toggle chiller
 
         # Take a step in the environment (each step is 15 minutes)
         next_state, reward, done, _ = env.step(action)

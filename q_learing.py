@@ -1,7 +1,7 @@
 import random
 import numpy as np
 import pygame
-from flappy_heatpump_env import FlappyHeatPumpEnv
+from flappy_building_sim_env import FlappyHeatPumpEnv
 
 # Hyperparameters for Q-learning
 episodes = 1000  # Total number of training episodes
