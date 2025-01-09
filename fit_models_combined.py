@@ -9,6 +9,7 @@ import pandas as pd
 import time
 import os
 import joblib
+import json
 
 
 model_dir = "models"
@@ -73,7 +74,7 @@ models = {
     "K-Neighbors": {
         "model": KNeighborsRegressor(),
         "params": {
-            "regressor__n_neighbors": [3, 5, 10],
+            "regressor__n_neighbors": [3, 5, 10, 20],
             "regressor__weights": ["uniform", "distance"],
         },
     },
@@ -132,11 +133,39 @@ for model_name, model_info in models.items():
     for target, target_mse in mse.items():
         print(f"  {target} - Mean Squared Error: {target_mse:.4f}")
 
-# Save all best models to the models directory
+# Save all best models to the models directory and write results to text and JSON files
 for model_name, model in best_models.items():
-    filename = os.path.join(model_dir, f"{model_name.replace(' ', '_')}_best_model.pkl")
-    joblib.dump(model, filename)
-    print(f"Saved {model_name} best model to file: {filename}")
+    # Save the model
+    model_filename = os.path.join(
+        model_dir, f"{model_name.replace(' ', '_')}_best_model.pkl"
+    )
+    joblib.dump(model, model_filename)
+
+    # Save the results as a text file
+    results_filename = os.path.join(
+        model_dir, f"{model_name.replace(' ', '_')}_results.txt"
+    )
+    with open(results_filename, "w") as f:
+        f.write(f"Model: {model_name}\n")
+        f.write(f"Total Fit Time: {results[model_name]['time']:.2f} seconds\n")
+        f.write(f"Best Parameters:\n")
+        for param, value in results[model_name]["best_params"].items():
+            f.write(f"  {param}: {value}\n")
+        f.write(f"\nMean Squared Error for Each Target:\n")
+        for target, target_mse in results[model_name]["mse"].items():
+            f.write(f"  {target}: {target_mse:.4f}\n")
+
+    # Save the results as a JSON file
+    json_filename = os.path.join(
+        model_dir, f"{model_name.replace(' ', '_')}_results.json"
+    )
+    with open(json_filename, "w") as f:
+        json.dump(results[model_name], f, indent=4)
+
+    print(f"Saved {model_name} best model to file: {model_filename}")
+    print(
+        f"Saved {model_name} results to files: {results_filename} and {json_filename}"
+    )
 
 # Summary of results
 print("\nSummary of Results:")
