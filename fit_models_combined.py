@@ -1,3 +1,4 @@
+import argparse
 from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.neighbors import KNeighborsRegressor
@@ -12,6 +13,17 @@ import joblib
 import json
 
 
+# Parse command-line arguments
+parser = argparse.ArgumentParser(description="Fit models and save the best one.")
+parser.add_argument(
+    "--model",
+    type=str,
+    choices=["random_forest", "extra_trees", "decision_tree", "k_neighbors"],
+    help="Specify a model to train (e.g., random_forest, extra_trees). If not provided, all models are trained.",
+)
+args = parser.parse_args()
+
+# Define directory for saving models
 model_dir = "models"
 os.makedirs(model_dir, exist_ok=True)
 
@@ -54,7 +66,7 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 # Define models and hyperparameter grids
 models = {
-    "Extra Trees": {
+    "extra_trees": {
         "model": ExtraTreesRegressor(random_state=42),
         "params": {
             "regressor__n_estimators": [50, 100, 200],
@@ -63,7 +75,7 @@ models = {
             "regressor__min_samples_leaf": [1, 2, 5],
         },
     },
-    "Decision Tree": {
+    "decision_tree": {
         "model": DecisionTreeRegressor(random_state=42),
         "params": {
             "regressor__max_depth": [5, 10, 20, None],
@@ -71,14 +83,17 @@ models = {
             "regressor__min_samples_leaf": [1, 2, 5],
         },
     },
-    "K-Neighbors": {
+    "k_neighbors": {
         "model": KNeighborsRegressor(),
         "params": {
-            "regressor__n_neighbors": [3, 5, 10, 20],
+            "regressor__n_neighbors": [5, 10, 15, 20, 30, 50, 75],
             "regressor__weights": ["uniform", "distance"],
+            "regressor__p": [1, 2, 3],
+            "regressor__algorithm": ["auto", "ball_tree", "kd_tree", "brute"],
+            "regressor__leaf_size": [10, 20, 30, 40, 50],
         },
     },
-    "Random Forest": {
+    "random_forest": {
         "model": RandomForestRegressor(random_state=42),
         "params": {
             "regressor__n_estimators": [50, 100, 200],
@@ -89,10 +104,13 @@ models = {
     },
 }
 
-best_models = {}
+# Filter models if a specific model is specified
+if args.model:
+    models = {args.model: models[args.model]}
+
 results = {}
 for model_name, model_info in models.items():
-    print(f"\nFitting {model_name}...")
+    print(f"\nFitting {model_name.replace('_', ' ').title()}...")
     start_time = time.time()
 
     pipeline = Pipeline(
@@ -111,9 +129,6 @@ for model_name, model_info in models.items():
     elapsed_time = time.time() - start_time
     best_model = grid_search.best_estimator_
 
-    # Save the best model to the dictionary
-    best_models[model_name] = best_model
-
     # Evaluate the model
     predictions = best_model.predict(X_test)
     mse = {
@@ -121,57 +136,48 @@ for model_name, model_info in models.items():
         for i in range(len(targets))
     }
 
-    # Store results
-    results[model_name] = {
-        "best_params": grid_search.best_params_,
-        "time": elapsed_time,
-        "mse": mse,
-    }
-
-    print(f"{model_name} - Best Parameters: {grid_search.best_params_}")
-    print(f"{model_name} - Fit Time: {elapsed_time:.2f} seconds")
-    for target, target_mse in mse.items():
-        print(f"  {target} - Mean Squared Error: {target_mse:.4f}")
-
-# Save all best models to the models directory and write results to text and JSON files
-for model_name, model in best_models.items():
-    # Save the model
-    model_filename = os.path.join(
-        model_dir, f"{model_name.replace(' ', '_')}_best_model.pkl"
-    )
-    joblib.dump(model, model_filename)
+    # Save the best model
+    model_filename = os.path.join(model_dir, f"{model_name}_best_model.pkl")
+    joblib.dump(best_model, model_filename)
 
     # Save the results as a text file
-    results_filename = os.path.join(
-        model_dir, f"{model_name.replace(' ', '_')}_results.txt"
-    )
+    results_filename = os.path.join(model_dir, f"{model_name}_results.txt")
     with open(results_filename, "w") as f:
-        f.write(f"Model: {model_name}\n")
-        f.write(f"Total Fit Time: {results[model_name]['time']:.2f} seconds\n")
+        f.write(f"Model: {model_name.replace('_', ' ').title()}\n")
+        f.write(f"Total Fit Time: {elapsed_time:.2f} seconds\n")
         f.write(f"Best Parameters:\n")
-        for param, value in results[model_name]["best_params"].items():
+        for param, value in grid_search.best_params_.items():
             f.write(f"  {param}: {value}\n")
         f.write(f"\nMean Squared Error for Each Target:\n")
-        for target, target_mse in results[model_name]["mse"].items():
+        for target, target_mse in mse.items():
             f.write(f"  {target}: {target_mse:.4f}\n")
 
     # Save the results as a JSON file
-    json_filename = os.path.join(
-        model_dir, f"{model_name.replace(' ', '_')}_results.json"
-    )
+    json_filename = os.path.join(model_dir, f"{model_name}_results.json")
     with open(json_filename, "w") as f:
-        json.dump(results[model_name], f, indent=4)
+        json.dump(
+            {
+                "best_params": grid_search.best_params_,
+                "time": elapsed_time,
+                "mse": mse,
+            },
+            f,
+            indent=4,
+        )
 
-    print(f"Saved {model_name} best model to file: {model_filename}")
     print(
-        f"Saved {model_name} results to files: {results_filename} and {json_filename}"
+        f"Saved {model_name.replace('_', ' ').title()} best model to file: {model_filename}"
+    )
+    print(
+        f"Saved {model_name.replace('_', ' ').title()} results to files: {results_filename} and {json_filename}"
     )
 
-# Summary of results
-print("\nSummary of Results:")
-for model_name, result in results.items():
-    print(f"Model: {model_name}")
-    print(f"  Total Fit Time: {result['time']:.2f} seconds")
-    print(f"  Best Parameters: {result['best_params']}")
-    for target, target_mse in result["mse"].items():
+    # Print the evaluation metrics
+    print(
+        f"{model_name.replace('_', ' ').title()} - Best Parameters: {grid_search.best_params_}"
+    )
+    print(
+        f"{model_name.replace('_', ' ').title()} - Fit Time: {elapsed_time:.2f} seconds"
+    )
+    for target, target_mse in mse.items():
         print(f"  {target} - Mean Squared Error: {target_mse:.4f}")
