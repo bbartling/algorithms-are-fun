@@ -37,7 +37,7 @@ venv/
 
 # Ignore models directory
 models/
-
+catboost_info/
 
 # Distribution / packaging
 .Python
