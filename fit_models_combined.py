@@ -32,6 +32,19 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
+# Define hour blocks
+def categorize_hour(hour):
+    if 4 <= hour < 8:
+        return '4AM-8AM'
+    elif 8 <= hour < 12:
+        return '8AM-Noon'
+    elif 12 <= hour < 16:
+        return 'Noon-4PM'
+    elif 16 <= hour < 20:
+        return '4PM-8PM'
+    else:
+        return None
+
 
 # Define directory for saving models
 model_dir = "models"
@@ -50,9 +63,46 @@ df = df[df["VAV2_7_SpaceTemp"] != 0]
 # Remove data for August 3, 2024, and save for future testing
 future_test_date = "2024-08-03"
 future_test_data = df[df["timestamp"].dt.date == pd.to_datetime(future_test_date).date()]
+
+# Extract day of the week for future test data (Monday=0, ..., Sunday=6)
+future_test_data.loc[:, 'weekday'] = future_test_data['timestamp'].dt.dayofweek
+
+# Add weekday dummy variables (exclude Sunday, which is weekday_6)
+weekday_dummies_future = pd.get_dummies(future_test_data['weekday'], prefix='weekday', drop_first=True)  # Excludes Sunday
+future_test_data = pd.concat([future_test_data, weekday_dummies_future], axis=1)
+
+# Extract hour of the day for future test data
+future_test_data.loc[:, 'hour'] = future_test_data['timestamp'].dt.hour
+
+# Add hour dummy variables (exclude the first hour, e.g., 'hour_0')
+hour_dummies_future = pd.get_dummies(future_test_data['hour'], prefix='hour', drop_first=True)  # Excludes midnight
+future_test_data = pd.concat([future_test_data, hour_dummies_future], axis=1)
+
+# Drop temporary columns
+future_test_data = future_test_data.drop(columns=['weekday', 'hour'])
+
+# Save the processed future test data
 future_test_filename = os.path.join(model_dir, "future_test_data.csv")
 future_test_data.to_csv(future_test_filename, index=False)
 print(f"Saved future test data to file: {future_test_filename}")
+
+# For the main dataset, do the same processing
+df['weekday'] = df['timestamp'].dt.dayofweek
+
+# Add weekday dummy variables (exclude Sunday, which is weekday_6)
+weekday_dummies = pd.get_dummies(df['weekday'], prefix='weekday', drop_first=True)  # Excludes Sunday
+df = pd.concat([df, weekday_dummies], axis=1)
+
+# Extract hour of the day
+df['hour'] = df['timestamp'].dt.hour
+
+# Add hour dummy variables (exclude the first hour, e.g., 'hour_0')
+hour_dummies = pd.get_dummies(df['hour'], prefix='hour', drop_first=True)  # Excludes midnight
+df = pd.concat([df, hour_dummies], axis=1)
+
+# Drop temporary columns
+df = df.drop(columns=['weekday', 'hour'])
+
 
 # Exclude August 3, 2024, from the training dataset
 df = df[df["timestamp"].dt.date != pd.to_datetime(future_test_date).date()]
@@ -67,11 +117,11 @@ columns_to_drop = [
     "CurrentKWHrs"
 ]
 df = df.drop(columns=columns_to_drop).reset_index(drop=True)
+
 print(df.columns)
-
-
 describe = df.describe()
-print(describe)
+
+print(df.head())
 
 # Save df.describe() to a JSON file
 describe_filename = os.path.join(model_dir, "df_describe.json")
@@ -84,6 +134,11 @@ print(f"Saved df.describe() to file: {describe_filename}")
 # Features and target (single target: 'CurrentKW')
 targets = ["CurrentKW"]
 features = [col for col in df.columns if col not in targets]
+
+for feature in features:
+    print(f"feature: {feature}")
+    print(f"describe: {df[feature].describe()}")
+    print()
 
 X = df[features].fillna(0).values
 y = df[targets[0]].fillna(0).values  # Fixed: Access as a Series or flatten the array
