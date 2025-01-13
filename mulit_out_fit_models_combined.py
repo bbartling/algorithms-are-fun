@@ -6,6 +6,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 import pandas as pd
 import os
+import joblib
 
 # Directory for saving models
 model_dir = "models"
