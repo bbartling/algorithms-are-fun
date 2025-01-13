@@ -1,5 +1,4 @@
 import argparse
-from catboost import CatBoostRegressor
 from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.neighbors import KNeighborsRegressor
@@ -14,6 +13,11 @@ import os
 import joblib
 import json
 
+"""
+python .\fit_models_combined.py --model extra_trees --dummies
+
+"""
+
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Fit models and save the best one.")
 parser.add_argument(
@@ -26,113 +30,141 @@ parser.add_argument(
         "k_neighbors",
         "adaboost",
         "gradient_boosting",
-        "catboost",
     ],
-    help="Specify a model to train (e.g., random_forest, catboost, xgboost). If not provided, all models are trained.",
+    help="Specify a model to train (e.g., random_forest, extra_trees, xgboost). If not provided, all models are trained.",
+)
+parser.add_argument(
+    "--dummies",
+    action="store_true",
+    help="Add dummy variables for weekday and hour to the dataset.",
 )
 args = parser.parse_args()
 
-# Define hour blocks
-def categorize_hour(hour):
-    if 4 <= hour < 8:
-        return '4AM-8AM'
-    elif 8 <= hour < 12:
-        return '8AM-Noon'
-    elif 12 <= hour < 16:
-        return 'Noon-4PM'
-    elif 16 <= hour < 20:
-        return '4PM-8PM'
-    else:
-        return None
-
-
-# Define directory for saving models
+# Directory for saving models
 model_dir = "models"
 os.makedirs(model_dir, exist_ok=True)
 
 # Load dataset
-df = pd.read_csv(r"C:\\Users\\ben\\OneDrive\\Documents\\WPCRC_Master.csv")
+df = pd.read_csv(r"C:\\Users\\ben\\OneDrive\\Documents\\MMB_Master.csv")
+df["timestamp"] = pd.to_datetime(df["timestamp"])
 
 # Preprocess data
-df["timestamp"] = pd.to_datetime(df["timestamp"])
-df = df[df["timestamp"].dt.year >= 2024]
+#df = df[df["timestamp"].dt.year >= 2024]
+# Filter data to keep only rows from April 2024 onward
+df = df[(df["timestamp"].dt.year > 2024) | ((df["timestamp"].dt.year == 2024) & (df["timestamp"].dt.month >= 4))]
+df = df[df["AV4_17_SpaceTemp"] != 0]
+df = df[df["Apparent_Power_Total"] != 0]
 
-# Remove rows where VAV2_7_SpaceTemp is zero
-df = df[df["VAV2_7_SpaceTemp"] != 0]
+print("Original df colummns")
+for col in df.columns:
+    print(col)
+print()
 
-# Remove data for August 3, 2024, and save for future testing
-future_test_date = "2024-08-03"
+# Handle future test data
+future_test_date = "2024-08-02"
 future_test_data = df[df["timestamp"].dt.date == pd.to_datetime(future_test_date).date()]
 
-# Extract day of the week for future test data (Monday=0, ..., Sunday=6)
-future_test_data.loc[:, 'weekday'] = future_test_data['timestamp'].dt.dayofweek
+# Define the columns to keep
+columns_to_keep = [
+    "timestamp",
+    "AHU1_CW_ValveAO (%)", "AHU1_MA_RA_DamperAO (%)", "AHU1_MATemp (°F)",
+    "AHU1_RATemp_value (°F)", "AHU1_SaFanSpeedAO_value (%)", "AHU2_CW_ValveAO (%)",
+    "AHU2_MA_RA_DamperAO (%)", "AHU2_MATemp (°F)",  "AHU2_RATemp_value (°F)",
+    "AHU2_SaFanSpeedAO_value (%)", "AHU3_CW_ValveAO (%)", "AHU3_MA_RA_DamperAO (%)",
+    "AHU3_MATemp (°F)", "AHU3_SaFanSpeedAO_value (%)",
+    "AHU4_CW_ValveAO (%)", "AHU4_MA_RA_DamperAO (%)", "AHU4_MATemp (°F)", 
+    "AHU4_RATemp_value (°F)", "AHU4_SaFanSpeedAO_value (%)", 
 
-# Add weekday dummy variables (exclude Sunday, which is weekday_6)
-weekday_dummies_future = pd.get_dummies(future_test_data['weekday'], prefix='weekday', drop_first=True)  # Excludes Sunday
-future_test_data = pd.concat([future_test_data, weekday_dummies_future], axis=1)
+    "AHU2_DAT (°F)",
+    "AHU1_DAT (°F)",
+    "AHU4_DAT (°F)",
+    "AHU3_DAT (°F)",
+    
+    "Boiler2_FireRate_value (%)",
+    "Boiler1_FireRate_value (%)", "Boiler_Flow_value (gal/min)", "Boiler1_HWS_value (°F)",
+    "Boiler_HWR_value (°F)", 
+    
+    "Active_Power_Total", 
 
-# Extract hour of the day for future test data
-future_test_data.loc[:, 'hour'] = future_test_data['timestamp'].dt.hour
+    "Chiller_RtnTemp_value (°F)",
+    "Chiller_CompStages_value", "Chiller_CWS_Temp_value (°F)",
+    "Chiller_DP_value (Δpsi)", "Chiller_Flow_value (gal/min)", "Chiller_BypassValve_value (%)",
 
-# Add hour dummy variables (exclude the first hour, e.g., 'hour_0')
-hour_dummies_future = pd.get_dummies(future_test_data['hour'], prefix='hour', drop_first=True)  # Excludes midnight
-future_test_data = pd.concat([future_test_data, hour_dummies_future], axis=1)
+    "AV1_7_SpaceTemp", 
+    "AV2_7_SpaceTemp", 
+    "AV2_15_SpaceTemp", 
+    "AV1_48_SpaceTemp", 
+    "AV3_6_SpaceTemp", 
+    "AV3_28B_SpaceTemp",
+    "AV4_6_SpaceTemp",
+    "AV4_17_SpaceTemp", 
 
-# Drop temporary columns
-future_test_data = future_test_data.drop(columns=['weekday', 'hour'])
+    "AV1_7_Co2",
+    "AV1_48_Co2",
+    "AV4_6_Co2",
+    "AV4_17_Co2"
+]
 
-# Save the processed future test data
-future_test_filename = os.path.join(model_dir, "future_test_data.csv")
-future_test_data.to_csv(future_test_filename, index=False)
-print(f"Saved future test data to file: {future_test_filename}")
+# Retain only the specified columns
+df = df.loc[:, columns_to_keep]
 
-# For the main dataset, do the same processing
-df['weekday'] = df['timestamp'].dt.dayofweek
+print("Cleaned df colummns")
+for col in df.columns:
+    print(col)
+print()
 
-# Add weekday dummy variables (exclude Sunday, which is weekday_6)
-weekday_dummies = pd.get_dummies(df['weekday'], prefix='weekday', drop_first=True)  # Excludes Sunday
-df = pd.concat([df, weekday_dummies], axis=1)
+print()
+print("Check time stamps: ")
+print(df.head())
+print(df.tail())
+print()
 
-# Extract hour of the day
-df['hour'] = df['timestamp'].dt.hour
+if args.dummies:
+    # Add weekday and hour dummy variables for future test data
+    future_test_data["weekday"] = future_test_data["timestamp"].dt.dayofweek
+    weekday_dummies_future = pd.get_dummies(future_test_data["weekday"], prefix="weekday", drop_first=True)
+    future_test_data = pd.concat([future_test_data, weekday_dummies_future], axis=1)
 
-# Add hour dummy variables (exclude the first hour, e.g., 'hour_0')
-hour_dummies = pd.get_dummies(df['hour'], prefix='hour', drop_first=True)  # Excludes midnight
-df = pd.concat([df, hour_dummies], axis=1)
+    future_test_data["hour"] = future_test_data["timestamp"].dt.hour
+    hour_dummies_future = pd.get_dummies(future_test_data["hour"], prefix="hour", drop_first=True)
+    future_test_data = pd.concat([future_test_data, hour_dummies_future], axis=1)
 
-# Drop temporary columns
-df = df.drop(columns=['weekday', 'hour'])
+    future_test_data = future_test_data.drop(columns=["weekday", "hour"])
 
+    future_test_filename = os.path.join(model_dir, "future_test_data.csv")
+    future_test_data.to_csv(future_test_filename, index=False)
+    print(f"Saved future test data with dummies to file: {future_test_filename}")
 
 # Exclude August 3, 2024, from the training dataset
 df = df[df["timestamp"].dt.date != pd.to_datetime(future_test_date).date()]
 
-# Correctly drop columns
+if args.dummies:
+    # Add weekday and hour dummy variables for main dataset
+    df["weekday"] = df["timestamp"].dt.dayofweek
+    weekday_dummies = pd.get_dummies(df["weekday"], prefix="weekday", drop_first=True)
+    df = pd.concat([df, weekday_dummies], axis=1)
+
+    df["hour"] = df["timestamp"].dt.hour
+    hour_dummies = pd.get_dummies(df["hour"], prefix="hour", drop_first=True)
+    df = pd.concat([df, hour_dummies], axis=1)
+
+    df = df.drop(columns=["weekday", "hour"])
+
+# Drop unused columns
 columns_to_drop = [
-    "timestamp", 
-    "CWS_Freeze_SPt", 
-    "Eff_DaSPt", 
-    "EffSetpoint", 
-    "SaTempSPt", 
-    "CurrentKWHrs"
+    "timestamp",
 ]
 df = df.drop(columns=columns_to_drop).reset_index(drop=True)
 
-print(df.columns)
-describe = df.describe()
-
-print(df.head())
-
-# Save df.describe() to a JSON file
+# Save processed dataset describe
 describe_filename = os.path.join(model_dir, "df_describe.json")
-df_describe_dict = describe.to_dict()
+describe = df.describe().to_dict()
 with open(describe_filename, "w") as f:
-    json.dump(df_describe_dict, f, indent=4)
+    json.dump(describe, f, indent=4)
 print(f"Saved df.describe() to file: {describe_filename}")
 
-
 # Features and target (single target: 'CurrentKW')
-targets = ["CurrentKW"]
+targets = ["Active_Power_Total"]
 features = [col for col in df.columns if col not in targets]
 
 for feature in features:
@@ -149,14 +181,6 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 # Define models and hyperparameter grids
 models = {
-    "catboost": {
-        "model": CatBoostRegressor(verbose=0, random_state=42),
-        "params": {
-            "regressor__iterations": [100, 200, 500],
-            "regressor__learning_rate": [0.01, 0.1, 0.2],
-            "regressor__depth": [4, 6, 8],
-        },
-    },
     "extra_trees": {
         "model": ExtraTreesRegressor(random_state=42),
         "params": {
