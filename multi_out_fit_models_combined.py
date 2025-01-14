@@ -1,5 +1,4 @@
 from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor, GradientBoostingRegressor
-from sklearn.multioutput import MultiOutputRegressor
 from sklearn.model_selection import train_test_split, RandomizedSearchCV
 from sklearn.metrics import mean_squared_error
 from sklearn.pipeline import Pipeline
@@ -7,6 +6,8 @@ from sklearn.preprocessing import StandardScaler
 import pandas as pd
 import os
 import joblib
+import json
+
 
 # Directory for saving models
 model_dir = "models"
@@ -17,12 +18,32 @@ df = pd.read_csv(r"C:\\Users\\ben\\OneDrive\\Documents\\MMB_Master.csv")
 df["timestamp"] = pd.to_datetime(df["timestamp"])
 df = df[(df["timestamp"].dt.year > 2024) | ((df["timestamp"].dt.year == 2024) & (df["timestamp"].dt.month >= 4))]
 
+# Remove any characters within parentheses, including the parentheses
+df.columns = df.columns.str.replace(r"\s*\([^)]*\)", "", regex=True)
+
+# Strip any leading or trailing whitespace
+df.columns = df.columns.str.strip()
+
+# Print cleaned column names for verification
+print("Cleaned Column Names:")
+print(df.columns)
+
+
+for col in df.columns:
+    print()
+    print(col)
+    print(df[col].describe())
+    print()
+
 # Define target and feature variables
 targets = [
-    "AHU2_DAT (°F)", "AHU1_DAT (°F)", "AHU4_DAT (°F)", "AHU3_DAT (°F)",
+    "AHU2_DAT", "AHU1_DAT", "AHU4_DAT", "AHU3_DAT",
+
     "AV1_7_SpaceTemp", "AV2_7_SpaceTemp", "AV2_15_SpaceTemp",
     "AV1_48_SpaceTemp", "AV3_6_SpaceTemp", "AV3_28B_SpaceTemp",
-    "AV4_6_SpaceTemp", "AV4_17_SpaceTemp"
+    "AV4_6_SpaceTemp", "AV4_17_SpaceTemp",
+
+    "Active_Power_Total"
 ]
 
 feature_columns = [col for col in df.columns if col not in targets + ["timestamp"]]
@@ -37,39 +58,43 @@ models = {
     "extra_trees": {
         "model": Pipeline([
             ("scaler", StandardScaler()),
-            ("regressor", MultiOutputRegressor(ExtraTreesRegressor(random_state=42))),
+            ("regressor", ExtraTreesRegressor(random_state=42)),
         ]),
         "params": {
-            "regressor__estimator__n_estimators": [100, 200, 300],
-            "regressor__estimator__max_depth": [5, 10, 25],
-            "regressor__estimator__min_samples_split": [2, 5],
-            "regressor__estimator__min_samples_leaf": [1, 2],
+            "regressor__n_estimators": [100, 200, 300],
+            "regressor__max_depth": [5, 10, 25, 50],
+            "regressor__min_samples_split": [5, 10, 25, 50],
+            "regressor__min_samples_leaf": [1, 2, 5],
         },
     },
     "random_forest": {
         "model": Pipeline([
             ("scaler", StandardScaler()),
-            ("regressor", MultiOutputRegressor(RandomForestRegressor(random_state=42))),
+            ("regressor", RandomForestRegressor(random_state=42)),
         ]),
         "params": {
-            "regressor__estimator__n_estimators": [100, 200],
-            "regressor__estimator__max_depth": [10, 20],
-            "regressor__estimator__min_samples_split": [2, 5],
-            "regressor__estimator__min_samples_leaf": [1, 2],
+            "regressor__n_estimators": [100, 200, 300],
+            "regressor__max_depth": [5, 10, 25, 50],
+            "regressor__min_samples_split": [5, 10, 25, 50],
+            "regressor__min_samples_leaf": [1, 2, 5],
         },
-    },
-    "gradient_boosting": {
-        "model": Pipeline([
-            ("scaler", StandardScaler()),
-            ("regressor", MultiOutputRegressor(GradientBoostingRegressor(random_state=42))),
-        ]),
-        "params": {
-            "regressor__estimator__n_estimators": [100, 200],
-            "regressor__estimator__learning_rate": [0.01, 0.1],
-            "regressor__estimator__max_depth": [3, 5],
-        },
-    },
+    }
 }
+
+# Save feature column names and descriptions
+metadata = {
+    "features": feature_columns,
+    "targets": targets,
+    "feature_descriptions": df[feature_columns].describe().to_dict(),
+    "target_descriptions": df[targets].describe().to_dict(),
+}
+with open(os.path.join(model_dir, "model_metadata.json"), "w") as f:
+    json.dump(metadata, f, indent=4)
+print(f"Saved model metadata to {os.path.join(model_dir, 'model_metadata.json')}")
+
+
+# Dictionary to store results
+results = {}
 
 # Train and evaluate models
 for model_name, model_info in models.items():
@@ -98,3 +123,16 @@ for model_name, model_info in models.items():
     model_path = os.path.join(model_dir, f"{model_name}_best_model.pkl")
     joblib.dump(best_model, model_path)
     print(f"Saved {model_name} model to {model_path}")
+
+    # Save results
+    results[model_name] = {
+        "best_params": grid_search.best_params_,
+        "mean_squared_error": mse,
+        "model_path": model_path,
+    }
+
+# Save results to a JSON file
+results_path = os.path.join(model_dir, "model_results.json")
+with open(results_path, "w") as f:
+    json.dump(results, f, indent=4)
+print(f"Saved model results to {results_path}")
